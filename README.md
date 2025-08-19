@@ -62,41 +62,30 @@ competencia = referência (mês/ano) usada para comparar valores.
 
 ## Como Usar
 
-Execute o código no Google Colab.
+1. Execute o código.
 
-Quando solicitado, faça upload dos arquivos da folha de pagamento (HTML, Excel ou CSV).
+2. Quando solicitado, faça upload dos arquivos da folha de pagamento (HTML, Excel ou CSV).
 
-O script irá:
-
-Extrair os dados de matrícula, nome, líquido e competência.
-
-Consolidar todos os arquivos em um único DataFrame.
-
+3. O script irá:
+Extrair os dados de matrícula, nome, líquido e competência; 
+Consolidar todos os arquivos em um único DataFrame;
 Gerar colunas de comparação mês a mês.
 
-O arquivo final comparativo_folha.xlsx será baixado automaticamente.
+4. O arquivo final comparativo_folha.xlsx será baixado automaticamente.
 
 ## Estrutura do Arquivo Final
 
 O Excel gerado (comparativo_folha.xlsx) contém:
 
-matricula → número da matrícula do servidor.
+`matricula` → número da matrícula do servidor.
 
-nome → nome padronizado em maiúsculo.
+`nome` → nome padronizado em maiúsculo.
 
-competências (colunas dinâmicas, ex: 202401, 202402) → valor líquido por mês.
+`competências`  (colunas dinâmicas, ex: 202401, 202402) → valor líquido por mês.
 
-diferenças (ex: 202401_para_202402) → variação do salário líquido.
+`diferenças` (ex: 202401_para_202402) → variação do salário líquido.
 
-status (ex: status_202401_para_202402) → indica se houve:
-
-Novo na folha atual
-
-Retirado da folha atual
-
-Há Alteração Salarial
-
-vazio (sem alteração).
+`status` (ex: status_202401_para_202402) → indica se houve: Novo na folha atual; Retirado da folha atual; Há Alteração Salarial; vazio (sem alteração).
 
 
 ## Exemplo de Saída
