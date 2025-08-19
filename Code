@@ -1,0 +1,116 @@
+!pip install pandas openpyxl beautifulsoup4 chardet
+
+import pandas as pd
+from bs4 import BeautifulSoup
+from google.colab import files
+import os
+import chardet
+
+palavras_fim_nome = [
+    "EM", "SUPERVISOR", "SUPERVISORA", "GERENTE", "OFICIAL", "DIRETOR", "TECNICO",
+    "ASSESSOR", "ASSESSORA", "COORDENADOR", "COORDENADORA", "CHEFE", "ESTAGIÁRIO", "ESTAGIÁRIA",
+    "AGENTE", "SECRETÁRIO", "SECRETÁRIA", "ASSISTENTE", "ADMINISTRATIVO", "GESTOR","TEC",
+    "FUNÇÃO", "BRANCO", "SERVIDOR", "SERVIDORA", "AUXILIAR", "ENGENHEIRO", "AGRONOMO", "ECONOMISTA", "PESQUISADOR","INPS","INSPETOR",
+]
+
+def extrair_dados_folha(html_content, competencia):
+    soup = BeautifulSoup(html_content, "html.parser")
+    linhas = soup.get_text().splitlines()
+    dados = []
+
+    for i, linha in enumerate(linhas):
+        if "CPF:" in linha:
+            linha_anterior = linhas[i - 1].strip().replace("*", "")
+            partes = linha_anterior.split()
+            if len(partes) < 3:
+                continue
+
+            matricula = partes[1]
+
+            nome_partes = []
+            for parte in partes[2:]:
+                if parte.upper() in palavras_fim_nome:
+                    break
+                nome_partes.append(parte)
+            nome = " ".join(nome_partes).strip().upper()
+
+            try:
+                liquido_linha = next(l for l in linhas[i+1:i+10] if "LIQUIDO" in l)
+                liquido = float(liquido_linha.split("==>")[-1].replace(".", "").replace(",", ".").strip())
+                dados.append({
+                    "matricula": matricula,
+                    "nome": nome,
+                    "liquido": liquido,
+                    "competencia": competencia
+                })
+            except StopIteration:
+                continue
+    return dados
+
+uploaded = files.upload()
+todos_os_dados = []
+
+for nome_arquivo in uploaded.keys():
+    extensao = os.path.splitext(nome_arquivo)[1].lower()
+    competencia = os.path.splitext(nome_arquivo)[0].split("_")[0]
+
+    if extensao in [".html", ".htm"]:
+        with open(nome_arquivo, 'r', encoding='latin1') as f:
+          html = f.read()
+          dados = extrair_dados_folha(html, competencia)
+          todos_os_dados.extend(dados)
+
+    elif extensao in [".xlsx", ".xls"]:
+        df_excel = pd.read_excel(nome_arquivo)
+        for _, row in df_excel.iterrows():
+            todos_os_dados.append({
+                "matricula": float(str(row["matricula"])),
+                "nome": str(row["nome"]).upper(),
+                "liquido": float(str(row["liquido"]).replace(".", "").replace(",", ".")),
+                "competencia": competencia
+            })
+
+    elif extensao == ".csv":
+        with open(nome_arquivo, 'rb') as f:
+            enc = chardet.detect(f.read())['encoding']
+        df_csv = pd.read_csv(nome_arquivo, encoding=enc, sep=None, engine="python")
+        for _, row in df_csv.iterrows():
+            todos_os_dados.append({
+                "matricula": float(str(row["matricula"])),
+                "nome": str(row["nome"]).upper(),
+                "liquido": float(str(row["liquido"]).replace(".", "").replace(",", ".")),
+                "competencia": competencia
+            })
+
+df = pd.DataFrame(todos_os_dados)
+df_grouped = df.groupby(["matricula", "nome", "competencia"], as_index=False).agg({"liquido": "sum"})
+df_pivot = df_grouped.pivot(index=["matricula", "nome"], columns="competencia", values="liquido").reset_index()
+df_pivot.columns.name = None
+
+competencias = sorted([col for col in df_pivot.columns if col not in ["matricula", "nome"]])
+
+for i in range(1, len(competencias)):
+    mes_ant, mes_atual = competencias[i - 1], competencias[i]
+    col_dif = f"{mes_ant}_para_{mes_atual}"
+    col_status = f"status_{mes_ant}_para_{mes_atual}"
+    df_pivot[col_dif] = df_pivot[mes_atual] - df_pivot[mes_ant]
+    def status(row):
+        if pd.isna(row[mes_ant]) and not pd.isna(row[mes_atual]):
+              return "Novo na folha atual"
+        elif not pd.isna(row[mes_ant]) and pd.isna(row[mes_atual]):
+              return "Retirado da folha atual"
+        elif row[mes_ant] != row[mes_atual]:
+            return "Há Alteração Salarial"
+        return ""
+    df_pivot[col_status] = df_pivot.apply(status, axis=1)
+
+df_pivot = df_pivot.sort_values(by="nome")
+
+# Visualizar prévia no notebook
+print("Prévia dos dados extraídos:")
+display(df_pivot.head(5000))
+
+excel_path = "comparativo_folha.xlsx"
+df_pivot.to_excel(excel_path, index=False)
+files.download(excel_path)
+
